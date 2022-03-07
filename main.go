@@ -1,12 +1,17 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"log"
 	"os/exec"
 	"regexp"
 )
 
+//go:embed wordlist.txt
+var wordlist []byte
+
+// Matcher is the state object which holds information on character matches
 type Matcher struct {
 	Guesses      []string
 	Found        []rune
@@ -15,11 +20,14 @@ type Matcher struct {
 	RegexString  string
 }
 
+// IndexMatch is the state object for the letter at a specific index in the word
 type IndexMatch struct {
 	Char     rune
 	Excluded []rune
 }
 
+// buildMatcher creates the regex string and list of matched characters used to
+// execute against the wordlist
 func buildMatcher(gs []string) (*Matcher, error) {
 	m := Matcher{
 		Guesses: gs,
@@ -32,8 +40,8 @@ func buildMatcher(gs []string) (*Matcher, error) {
 
 	// For each guess
 	for _, g := range gs {
-		rs := []rune(g)
-		ci := 0 // character index in actual word
+		rs := []rune(g) // slice of runes in word/input
+		ci := 0         // character index in actual word
 		// For each character in guess
 		for i := 0; i < len(rs); i++ {
 			im := m.IndexMatches
@@ -70,6 +78,7 @@ func buildMatcher(gs []string) (*Matcher, error) {
 		}
 	}
 	rx += "$"
+	// Make sure generated regex is valid
 	_, err := regexp.Compile(rx)
 	if err != nil {
 		return nil, err
@@ -78,6 +87,36 @@ func buildMatcher(gs []string) (*Matcher, error) {
 	m.RegexString = rx
 
 	return &m, nil
+}
+
+// RunRgRegex calls the ripgrep command with given arguments
+func RunRgRegex(rgx string, cmdInput *[]byte) (*[]byte, error) {
+	cmd := exec.Command("rg", rgx)
+
+	// cmdInput is what should be sent to stdin
+	if cmdInput != nil {
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = stdin.Write(*cmdInput)
+		if err != nil {
+			return nil, err
+		}
+
+		err = stdin.Close()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, err
+	}
+
+	return &out, nil
 }
 
 func main() {
@@ -103,7 +142,7 @@ func main() {
 		log.Println("Possible matches:")
 
 		// Execute main regex which excludes letters at each position
-		out, err := exec.Command("rg", matcher.RegexString, "wordlist.txt").CombinedOutput()
+		out, err := RunRgRegex(matcher.RegexString, &wordlist)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -114,28 +153,16 @@ func main() {
 		for _, c := range matcher.Found {
 			// For each letter, pipe in wordlist from last rg command to
 			// progressively filter word list
-			cmd := exec.Command("rg", string(c))
-			stdin, err := cmd.StdinPipe()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			_, err = stdin.Write(out)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			err = stdin.Close()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			out, err = cmd.Output()
+			out, err = RunRgRegex(string(c), out)
 			if err != nil {
 				log.Fatal(err)
 			}
 		}
 
-		fmt.Printf("\n%s\n", out)
+		if out != nil {
+			fmt.Printf("\n%s\n", *out)
+		} else {
+			log.Fatal("No command output!")
+		}
 	}
 }

@@ -3330,6 +3330,7 @@ satyr
 sauce
 saucy
 sauna
+saute
 saved
 saver
 saves

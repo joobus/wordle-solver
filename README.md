@@ -18,5 +18,5 @@ Execute the program.  After entering your guess on the website, enter your guess
 ### Example
 
 Say you enter the word `saute`.  Wordle shows `a` and `e` as green, and `t` as
-grey.  In this program, input: `s+au-t+e`.  It will then spit out the list of
+yellow.  In this program, input: `s+au-t+e`.  It will then spit out the list of
 possible words for your next guess.

@@ -4584,6 +4584,7 @@ zebra
 zebus
 zeros
 zests
+zesty
 zilch
 zincs
 zings
